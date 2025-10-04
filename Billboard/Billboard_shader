@@ -1,0 +1,78 @@
+Shader "Custom/Billboard"
+{
+    Properties
+    {
+        _MainTex ("Texture", 2D) = "white" {}
+        _Color ("Color", Color) = (1, 1, 1, 1)
+        _VerticalBillboarding ("Vertical Restraints", Range(0, 1)) = 1
+    }
+    SubShader
+    {
+        Tags { "Queue"="Transparent" "RenderType"="Opaque" "IgnoreProjector"="True" "DisableBatching"="true" }
+
+        Pass
+        {
+            Tags { "LightMode"="ForwardBase" }
+            ZWrite Off
+            Blend SrcAlpha OneMinusSrcAlpha
+            Cull Off
+
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile_fwdbase
+
+            #include "UnityCG.cginc"
+            #include "Lighting.cginc"
+            #include "AutoLight.cginc"
+
+            sampler2D _MainTex;
+            float4 _MainTex_ST;
+            float4 _Color;
+            float _VerticalBillboarding;
+
+            struct a2v
+            {
+                float4 vertex : POSITION;
+                float2 texcoord : TEXCOORD0;
+            };
+
+            struct v2f
+            {
+                float2 uv : TEXCOORD0;
+                float4 pos : SV_POSITION;
+            };
+
+            v2f vert (a2v v)
+            {
+                v2f o;
+                
+                float4 center = float4(0, 0, 0, 1);
+                float3 viewPos = mul(unity_WorldToObject, float4(_WorldSpaceCameraPos, 1)).xyz;
+                float3 normalDir = viewPos - center;
+                normalDir.y *= _VerticalBillboarding;
+                normalDir = normalize(normalDir);
+
+                half3 upDir = abs(normalDir.y) > 0.999 ? half3(0, 0, 1) : half3(0, 1, 0);
+                half3 rightDir = normalize(cross(upDir, normalDir));
+                upDir = normalize(cross(normalDir, rightDir));
+
+                float3x3 rotate_Matrix = transpose(float3x3(rightDir.xyz, upDir.xyz, normalDir.xyz));
+                v.vertex.xyz = mul(rotate_Matrix, v.vertex.xyz);
+                o.pos = UnityObjectToClipPos(v.vertex);
+                o.uv = TRANSFORM_TEX(v.texcoord, _MainTex);
+
+                return o;
+            }
+
+            half4 frag (v2f i) : SV_Target
+            {
+                float4 texCol = tex2D(_MainTex, i.uv);
+                texCol.rgb *= _Color.rgb;
+
+                return texCol;
+            }
+            ENDCG
+        }
+    }
+}
