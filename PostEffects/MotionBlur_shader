@@ -1,0 +1,55 @@
+Shader "Custom/MotionBlur"
+{
+    Properties
+    {
+        _MainTex ("Base (RGB)", 2D) = "white" {}
+        _HistoryTex ("History Texture", 2D) = "white" {}
+        _BlurAmount ("Blur Amount", Float) = 0.5
+    }
+    SubShader
+    {
+        CGINCLUDE
+        #include "UnityCG.cginc"
+        sampler2D _MainTex;
+        sampler2D _HistoryTex;
+        float _BlurAmount;
+
+        struct a2v {
+            float4 vertex : POSITION;
+            float2 texcoord : TEXCOORD0;
+        };
+
+        struct v2f {
+            float4 pos : SV_POSITION;
+            float2 uv : TEXCOORD0;
+        };
+
+        v2f vert(a2v v) {
+            v2f o;
+            o.pos = UnityObjectToClipPos(v.vertex);
+            o.uv = v.texcoord;
+
+            return o;
+        }
+
+        half4 frag(v2f i) : SV_Target{
+            half4 currentCol = tex2D(_MainTex, i.uv);
+            half4 historyCol = tex2D(_HistoryTex, i.uv);
+
+            return currentCol * (1.0 - _BlurAmount) + historyCol * _BlurAmount;
+        }
+        ENDCG
+
+        ZTest Always ZWrite Off Cull Off
+
+        Pass {
+            CGPROGRAM
+
+            #pragma vertex vert
+            #pragma fragment frag
+
+            ENDCG
+        }
+    }
+    FallBack Off
+}
