@@ -1,0 +1,75 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+public class MotionBlur : PostEffectsBase
+{
+    public Shader motionBlurShader;
+    private Material motionBlurMaterial;
+
+    public Material material
+    {
+        get
+        {
+            motionBlurMaterial = CheckShaderAndCreateMaterial(motionBlurShader, motionBlurMaterial);
+            return motionBlurMaterial;
+        }
+    }
+
+    [Range(0.0f, 0.9f)]
+    public float blurAmount = 0.5f;
+
+    private RenderTexture[] accumulationTextures = new RenderTexture[2];
+    private int currentTextureIndex = 0;
+
+    void OnDisable()
+    {
+        if (accumulationTextures[0] != null) DestroyImmediate(accumulationTextures[0]);
+        if (accumulationTextures[1] != null) DestroyImmediate(accumulationTextures[1]);
+    }
+
+    private void OnRenderImage(RenderTexture source, RenderTexture destination)
+    {
+        if (material != null)
+        {
+            if ( accumulationTextures[0]        == null           ||
+                 accumulationTextures[0].width  != source.width   ||
+                 accumulationTextures[0].height != source.height   )
+            {
+                RecreateBuffers(source);
+            }
+
+            int historyIndex = currentTextureIndex;
+            currentTextureIndex = (currentTextureIndex + 1) % 2;
+            int targetIndex = currentTextureIndex;
+
+            material.SetFloat("_BlurAmount", blurAmount);
+            material.SetTexture("_HistoryTex", accumulationTextures[historyIndex]);
+
+            Graphics.Blit(source, accumulationTextures[targetIndex], material);
+            Graphics.Blit(accumulationTextures[targetIndex], destination);
+        }
+        else
+        {
+            Graphics.Blit(source, destination);
+        }
+    }
+
+    private void RecreateBuffers(RenderTexture source)
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            if (accumulationTextures[i] != null)
+                DestroyImmediate(accumulationTextures[i]);
+
+            accumulationTextures[i] = new RenderTexture(source.width, source.height, 0);
+            accumulationTextures[i].hideFlags = HideFlags.HideAndDontSave;
+
+            // 初始化为当前帧（如果是第一次创建）
+            if (i == 0)
+                Graphics.Blit(source, accumulationTextures[i]);
+        }
+        currentTextureIndex = 0;
+    }
+}
